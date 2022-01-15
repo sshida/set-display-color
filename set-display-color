@@ -1,0 +1,146 @@
+#!/bin/bash -eu
+
+# Set external HDMI dispay following current clock
+# External HDMI display will be set with DDC/CI over HDML
+# 2021-2022, sshida@gmail.com
+
+# Reference: https://blog.tcharles.fr/ddc-ci-screen-control-on-linux/
+# Reference: man ddcutil
+
+# The range of parameters should be configured with each HDML display
+# Range of value for DDC settings
+read minBrightness maxBrightness   <<<  "0 75"
+read minTemperature maxTemperature <<<  "4  3"
+read minContrast maxContrast       <<< "25 80"
+
+# You may change lighing rate per hourly clock
+# Lighting rate must be from 0 to 100 integer only
+declare -A lightingRate=(
+  ["00"]="0"
+  ["01"]="0"
+  ["02"]="0"
+  ["03"]="0"
+  ["04"]="20"
+  ["05"]="50"
+  ["06"]="80"
+  ["07"]="100"
+  ["08"]="100"
+  ["09"]="100"
+  ["10"]="100"
+  ["11"]="100"
+  ["12"]="100"
+  ["13"]="100"
+  ["14"]="100"
+  ["15"]="100"
+  ["16"]="100"
+  ["17"]="80"
+  ["18"]="50"
+  ["19"]="20"
+  ["20"]="0"
+  ["21"]="0"
+  ["22"]="0"
+  ["23"]="0"
+)
+
+function getSteppedValue() {
+  local min=$1
+  local max=$2
+  local percent=$3
+
+  echo $(( min + (max - min) * percent / 100))
+}
+
+function getCurrentParameter() {    # show "brightness temprature contrast"
+  local rate=${lightingRate[$(date +%H)]}
+  echo $(
+    getSteppedValue $minBrightness $maxBrightness $rate
+    getSteppedValue $minTemperature $maxTemperature $rate
+    getSteppedValue $minContrast $maxContrast $rate
+  )
+}
+
+usage() {
+  echo \
+'usage: '$0' [-dah] [-p port] [-b brightness] [-c contrast] [-t temperature] [auto | day | night | dark | show]
+
+  port: c=USB type C, h=HDMI, d=Display Port
+  brightness: from 1 to 100
+  contrast: from 1 to 100
+  temperature: 1=6500K, 2=9300K, 3=User1, 4=User2
+'
+  exit 1
+}
+
+DDCUTIL="ddcutil --nousb"
+DDC_GET="$DDCUTIL -t getvcp"
+
+setBrightness() {
+  local brightness=$1
+  ((0 <= brightness && brightness <= 100)) || usage
+  local currentValue
+  currentValue=$($DDC_GET 10 | awk '{print $4}')
+  [ $currentValue = $brightness ] || $DDCUTIL setvcp 10 $brightness
+}
+
+setTemp() {
+  local temperature=$1
+  local currentValue
+  currentValue=$($DDC_GET 14 | awk '{print $4}')
+  case "$temperature" in
+    1) [ $currentValue = "x05" ] || $DDCUTIL setvcp 14 5;;
+    2) [ $currentValue = "x08" ] || $DDCUTIL setvcp 14 8;;
+    3) [ $currentValue = "x0b" ] || $DDCUTIL setvcp 14 11;;
+    4) [ $currentValue = "x0c" ] || $DDCUTIL setvcp 14 12;;
+    *) usage;;
+  esac
+}
+
+setContrast() {
+  local contrast=$1
+  ((0 <= contrast && contrast <= 100)) || usage
+  local currentValue
+  currentValue=$($DDC_GET 12 | awk '{print $4}')
+  [ $currentValue = $contrast ] || $DDCUTIL setvcp 12 $contrast
+}
+
+setPort() {
+  local port=$1
+  case "$port" in
+    c|C) $DDCUTIL setvcp 60 27;;
+    h|H) $DDCUTIL setvcp 60 17;;
+    d|D) $DDCUTIL setvcp 60 15;;
+    *) usage;;
+  esac
+}
+
+_done=0
+while getopts "dahb:c:p:t:" opt; do
+  case "${opt}" in
+    d) $DDCUTIL detect;;
+    a) $DDCUTIL getvcp all;;
+    b) setBrightness ${OPTARG};;
+    p) setPort ${OPTARG};;
+    t) setTemp ${OPTARG};;
+    c) setContrast ${OPTARG};;
+    *) usage;;
+  esac
+
+  _done=1
+done
+
+shift $((OPTIND - 1))
+[ $# -le 0 ] && [ $_done -ne 0 ] && exit
+[ $# -le 0 ] && usage
+
+case "$1" in
+  day)   read brightness temperature contrast <<< "50 3 80" ;;
+  night) read brightness temperature contrast <<< "20 4 75" ;;
+  dark)  read brightness temperature contrast <<<  "0 4 50" ;;
+  auto)  read brightness temperature contrast <<< $(getCurrentParameter);;
+  show)  $DDCUTIL getvcp color; exit;;
+  *) usage;;
+esac
+
+setBrightness $brightness
+setTemp $temperature
+[ -z "$contrast" ] || setContrast $contrast

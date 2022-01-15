@@ -1,0 +1,12 @@
+[Unit]
+Description=Set color of display according to time 
+StartLimitBurst=15
+StartLimitIntervalSec=4h
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/set-display-color auto
+
+[Install]
+WantedBy=multi-user.target
+
