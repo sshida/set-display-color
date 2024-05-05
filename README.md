@@ -1,18 +1,17 @@
 # set-display-color
 
 - Set the color of externerl HDMI display with DDC/CI according to time
-- For Raspi Ubuntu 21.10, require "kms" display driver. "fkms" is not supported
-- With systemd timer and service, display parameter will be hourly checked and updated
+- For Raspi Ubuntu desktop 21.10, require "kms" display driver. "fkms" is not supported
+- With systemd timer and service, display parameter will be half hourly checked and updated
 
-- You can tune the min and max parameter for each brightness, temperature and contrast
-- You can tune the lighting rate in lighingRate table
+- You can tune some parameters for brightness, temperature and contrast in set-display-color script
 
-## INSTALL
+## Install
 ```
 $ sudo ./install.sh
 ```
 
-## UNINSTALL
+## Uninstall
 ```
 $ sudo ./uninstall.sh
 ```
@@ -26,7 +25,7 @@ $ systemctl status set-display-color.timer
 - Follwing is an example of DELL P3421W display
 
 ```
-$ set-display-color status
+$ set-display-color show
 VCP code 0x0b (Color temperature increment   ): 1 degree(s) Kelvin
 VCP code 0x0c (Color temperature request     ): 3000 + 2 * (feature 0B color temp increment) degree(s) Kelvin
 VCP code 0x10 (Brightness                    ): current value =    75, max value =   100
